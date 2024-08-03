@@ -1,83 +1,120 @@
-import React from 'react'
-import { useRouter } from 'next/router'
-import Link from 'next/link'
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
+import Link from 'next/link';
+import styled from 'styled-components';
 
-import { config } from 'config/config'
-import { showErrorNotification } from 'lib/showNotification'
-import { articlesCollection, ArticlesContextProvider } from 'hooks/useArticles'
-import useUser from 'hooks/useUser'
+import { config } from 'config/config';
+import { showErrorNotification } from 'lib/showNotification';
+import { pantryCollection, PantryContextProvider } from 'hooks/usePantry';
+import useUser from 'hooks/useUser';
 
-import ArticleList from 'components/articles/ArticleList'
-import AddArticleForm from 'components/articles/AddArticleForm'
+import PantryList from 'components/pantry/PantryList';
+import AddPantryForm from 'components/pantry/AddPantryForm';
 
-function ArticleListPage ({ articles }) {
-  // Note: 'query' contains both /:params and ?query=value from url
-  const { query } = useRouter()
-  const { user, signOut } = useUser()
+const Container = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+  color: #343a40;
+`;
+
+const Header = styled.h1`
+  text-align: center;
+  color: #4CAF50;
+  margin-bottom: 20px;
+`;
+
+const SearchInput = styled.input`
+  padding: 10px;
+  margin-bottom: 20px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  width: 300px;
+`;
+
+const SignInText = styled.p`
+  margin-top: 20px;
+  color: #343a40;
+`;
+
+const SignInLink = styled.a`
+  color: #007bff;
+  text-decoration: none;
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+
+function PantryTrackerPage({ items = [] }) {
+  const { query } = useRouter();
+  const { user, signOut } = useUser();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredItems, setFilteredItems] = useState(items);
+
+  useEffect(() => {
+    setFilteredItems(
+      items.filter(item => 
+        item.name.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    );
+  }, [searchTerm, items]);
+
   return (
-    <>
-      <h1>{config.appName}</h1>
+    <Container>
+      <Header>Pantry Tracker</Header>
 
-      <p><em>{config.appTagline}</em></p>
+      <SearchInput
+        type="text"
+        placeholder="Search pantry items"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+      />
+      <PantryContextProvider items={filteredItems} onError={showErrorNotification}>
+        <PantryList items={filteredItems} />
+        <AddPantryForm />
+      </PantryContextProvider>
 
-      <ArticlesContextProvider
-        articles={articles}
-        onError={showErrorNotification}
-      >
-        <ArticleList />
-        <AddArticleForm />
-      </ArticlesContextProvider>
-
-      <h2>Routing</h2>
-      <p>Current query: <strong>{JSON.stringify(query)}</strong></p>
-
-      <h2>Sign in (using Firebase Authentication)</h2>
-      {user
-        ? (
-          <>
-            <p>You are signed in as <strong>{user.email ?? user.displayName}</strong></p>
-            <p><a onClick={signOut}>Sign out</a></p>
-          </>
-          )
-        : (
+      {user ? (
+        <>
+          <SignInText>You are signed in as <strong>{user.email ?? user.displayName}</strong></SignInText>
+          <SignInText><SignInLink onClick={signOut}>Sign out</SignInLink></SignInText>
+        </>
+      ) : (
+        <SignInText>
           <Link legacyBehavior href='/signin'>
-            <a>Click here to sign in</a>
+            <SignInLink>Click here to sign in</SignInLink>
           </Link>
-          )}
-
-      <h2>Add to Home Screen</h2>
-      <p>You can add this to your Home Screen on iOS/Android, it should then start full screen.</p>
-
-      <h2>Source code</h2>
-      <p>Get the <a target='_blank' rel='noopener noreferrer' href='https://github.com/tomsoderlund/nextjs-pwa-firebase-boilerplate'>source code for nextjs-pwa-firebase-boilerplate</a></p>
-
-      <p>Version {config.appVersion}</p>
-    </>
-  )
+        </SignInText>
+      )}
+    </Container>
+  );
 }
 
-export default ArticleListPage
+export default PantryTrackerPage;
 
 // SSG
-export async function getStaticProps ({ params, locale = 'en' }) {
-  const articlesRaw = await articlesCollection()
-  const articles = articlesRaw.map(article => ({
-    ...article,
-    // To avoid “cannot be serialized as JSON” error:
-    dateCreated: article.dateCreated ? article.dateCreated.toString() : null,
-    dateUpdated: article.dateUpdated ? article.dateUpdated.toString() : null
-  }))
+export async function getStaticProps({ params, locale = 'en' }) {
+  let items = [];
+  try {
+    const itemsRaw = await pantryCollection();
+    items = itemsRaw.map(item => ({
+      ...item,
+      dateCreated: item.dateCreated ? item.dateCreated.toString() : null,
+      dateUpdated: item.dateUpdated ? item.dateUpdated.toString() : null,
+    }));
+  } catch (error) {
+    console.error("Error fetching pantry items:", error);
+  }
+
   return {
     props: {
-      articles
+      items,
     },
-    revalidate: 10 * 60 // Refresh page every 10 minutes
-  }
+    revalidate: 10 * 60, // Refresh page every 10 minutes
+  };
 }
-
-// SSR
-// export async function getServerSideProps ({ req, res, query: { slug } }) {
-//   return {
-//     articles
-//   }
-// }

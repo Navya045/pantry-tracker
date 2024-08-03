@@ -1,3 +1,6 @@
+import '../polyfills';
+import '../pages/style/style.css'; // Import your global CSS file here
+
 import React from 'react'
 import Router from 'next/router'
 import Link from 'next/link'
